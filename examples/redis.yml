@@ -1,0 +1,25 @@
+#
+#   Author: Rohith
+#   Date: 2015-06-23 15:35:09 +0100 (Tue, 23 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+
+apiVersion: v1beta3
+kind: Service
+metadata:
+  labels:
+    name: gitlab-redis
+    role: service
+  name: gitlab-redis
+  annotations:
+    loadbalancer: |
+      6379:
+        type: tcp  
+spec:
+  portalIP: 10.101.100.100
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    name: gitlab-redis

@@ -1,0 +1,33 @@
+#
+#   Author: Rohith
+#   Date: 2015-06-25 12:46:59 +0100 (Thu, 25 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+apiVersion: v1beta3
+kind: Service
+metadata:
+  labels:
+    name: gitlab-web
+  name: gitlab-web
+  annotations:
+    loadbalancer: |
+      80:
+        type: http
+        vhost: gitlab.example.com
+      443:
+        type: http
+        vhost: gitlab.example.com
+        ssl:
+          key: gitlab.example.com.key
+          ca: gitlab.example.com.ca
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443
+  selector:
+    name: gitlab-web
