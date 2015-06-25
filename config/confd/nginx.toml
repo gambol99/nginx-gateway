@@ -10,6 +10,7 @@ src   = "nginx.conf.tmpl"
 dest  = "/etc/nginx/config.json"
 keys  = [ 
   "/registry/services/specs/",
+  "/registry/services/endpoints/",
   "/registry/minions",
 ]
 owner = "root"

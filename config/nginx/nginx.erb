@@ -16,6 +16,10 @@
     !ENV['FLANNEL_ENABLED'].nil?
   end
 
+  def has_endpoints?
+    !ENV['ENDPOINTS_ENABLED'].nil?
+  end
+
   def has_logs?
     !ENV['NGINX_LOGS'].nil?
   end
@@ -102,6 +106,7 @@
           exported_service = {
             :name        => name,
             :type        => service_type,
+            :namespace   => service['metadata']['namespace'],
             :uid         => service['metadata']['uid'],
             :port        => dest_port,
             :source_port => source_port,
@@ -125,6 +130,29 @@
   def http_services
     loadbalanced_services[HTTP_SERVICE.to_sym]
   end
+
+  # collates and merges the vhosts into indiviual services, allowing us to run
+  def vhost_sites
+    @vhost_services ||= nil
+    unless @vhost_services
+      @vhost_services = []
+      sites = {}
+      http_services.each do |service|
+        name     = service[:name]
+        balancer = service[:balancer]
+        site     = balancer['vhost'] || 'default'
+        port     = service[:port]
+        key      = "#{port}:#{site}"
+        if sites.has_key?(key)
+
+        else
+          vhost_services << service 
+          sites[key] = true  
+        end
+      end
+    end
+    @vhost_services
+  end
 -%>
 
 # Configuration Errors:
@@ -138,11 +166,11 @@
 
 daemon off;
 user nginx;
-worker_processes 4;
+worker_processes <%= ENV['NGINX_WORKERS'] || '4' %>;
 pid /run/nginx.pid;
 
 events {
-  worker_connections 1024;
+  worker_connections <%= ENV['NGINX_CONNECTIONS'] || '1024' %>;
   multi_accept on;
 }
 
@@ -194,7 +222,7 @@ http {
 
   include /etc/nginx/conf.d/*.conf;
 
-  <%= 
+  <%- 
     http_services.each do |service|
       name     = service[:name] 
       balancer = service[:balancer]
@@ -203,9 +231,9 @@ http {
   server {
     listen <%= service[:port] %>;
     server_name <%= vhost %>;
-
     <%- if balancer['ssl'] -%>
     <%- ssl = balancer['ssl'] -%>
+    
     ssl_certificate           /etc/nginx/ssl/<%= ssl['ssl_cert'] %>;
     ssl_certificate_key       /etc/nginx/ssl/<%= ssl['ssl_key'] %>;
 
