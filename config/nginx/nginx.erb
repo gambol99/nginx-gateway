@@ -126,10 +126,15 @@
     loadbalanced_services[HTTP_SERVICE.to_sym]
   end
 -%>
+
 # Configuration Errors:
-<%- errors.each do |err| -%>
-# <%= err %>  
-<%- end -%>
+<%- if errors.empty? -%>
+# Zero error encountered in the configuration 
+<%- else 
+  errors.each do |message| -%>
+# Error: <%= message -%>
+<%- end 
+  end -%>
 
 daemon off;
 user nginx;
@@ -161,4 +166,90 @@ stream {
     <%- end # end of the flannel check -%>
   }
   <%- end # end of the tcp service iteration -%>
+}
+
+##
+# Virtual Host Configs
+##
+
+http {
+  sendfile on;
+  tcp_nopush on;
+  tcp_nodelay on;
+  keepalive_timeout 65;
+  types_hash_max_size 2048;
+  server_tokens off;
+
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+
+  <%- if has_logs? -%>
+  access_log /var/log/nginx/access.log;
+  <%- else -%>
+  access_log off;
+  <%- end -%>
+  error_log /var/log/nginx/error.log;
+  gzip on;
+  gzip_disable "msie6";
+
+  include /etc/nginx/conf.d/*.conf;
+
+  <%= 
+    http_services.each do |service|
+      name     = service[:name] 
+      balancer = service[:balancer]
+      vhost    = balancer['vhost'] || 'default'
+  -%>
+  server {
+    listen <%= service[:port] %>;
+    server_name <%= vhost %>;
+
+    <%- if balancer['ssl'] -%>
+    <%- ssl = balancer['ssl'] -%>
+    ssl_certificate           /etc/nginx/ssl/<%= ssl['ssl_cert'] %>;
+    ssl_certificate_key       /etc/nginx/ssl/<%= ssl['ssl_key'] %>;
+
+    ssl on;
+    ssl_session_cache  builtin:1000  shared:SSL:10m;
+    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+    ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
+    ssl_prefer_server_ciphers on;
+    <%- end -%>
+
+    <%- if balancer['paths'] -%>
+      <%- balancer['paths'].each do |path| -%>
+    location <%= path %>/ {
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-NginX-Proxy true;
+      proxy_pass http_<%= name %>;
+    }
+      <%- end -%>
+    <%- elsif balancer['defaultPath'] -%>
+    location / {
+      rewrite ^/$ <%= balancer['defaultPath'] %>/ permanent;
+    }
+    <%- else -%>
+    location / {
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-NginX-Proxy true;
+      proxy_pass http://<%= name %>;
+    }
+    <%- end -%>
+  }
+
+  upstream <%= name %> {
+    <%- if has_flannel? -%>
+    server <%= service[:cluster_ip] %>:<%= service[:source_port] %>;
+    <%- else -%>
+    <%- minions.each do |node| -%>
+    server <%= node[:ip] %>:<%= service[:target_port] %>;
+    <%- end # end of the minion iteration -%>
+    <%- end # end of the flannel check -%>
+  }
+  
+  <%- end # end of the service iteration -%>
 }
