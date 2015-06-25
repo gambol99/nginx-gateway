@@ -8,27 +8,128 @@
 <%-
   require 'yaml'
 
-  # step: do we have a flannel network - otherwise we use the minion ip address?
-  has_flannel = !ENV['FLANNEL_ENABLED'].nil?
+  CONFIG_LB    = 'loadbalancer'
+  TCP_SERVICE  = 'tcp'
+  HTTP_SERVICE = 'http'
 
-  # step: we only need to speak with service that have loadbalancer annontation 
-  balanced = @services.inject([]) do |a,service|
-    if ( service['metadata'] || {} )['annotations']
-      begin
-        # step: we only those with loadbalancer annonations 
-        if service['metadata']['annotations']['loadbalancer']
-          service['balancer'] = YAML.load(service['metadata']['annotations']['loadbalancer'])
-          a << service
+  def has_flannel?
+    !ENV['FLANNEL_ENABLED'].nil?
+  end
+
+  def has_logs?
+    !ENV['NGINX_LOGS'].nil?
+  end
+
+  def errors(message = nil)
+    @errors ||= []
+    @errors << message if message
+    @errors
+  end
+
+  # description: process each of the service and extract anything that is requesting load balanacing
+  def exposed_services
+    @exposed_services ||= @services.inject([]) do |a,service|
+      name = service['metadata']['name']
+      metadata = service['metadata'] || {} 
+      if metadata['annotations']
+        annotations = metadata['annotations']
+        begin
+          # step: we only those with loadbalancer annonations 
+          if annotations[CONFIG_LB]
+            annotations[CONFIG_LB] = YAML.load(annotations[CONFIG_LB])
+            a << service
+          end
+        rescue Exception => e 
+          errors "unable to extract the load balancer config for service: #{name}, error: #{e}"
         end
-      rescue Exception => e
--%>
-# load balance config: service: <%= service['metadata']['name'] %> is invalid, please check
-<%-
+      end
+      a
+    end
+    @exposed_services
+  end
+
+  def minions
+    @minions_nodes ||= @minions.inject([]) do |a,node|
+      record = {
+        :name => node['metadata']['name'],
+        :ip   => node['spec']['externalID'],
+      }
+      a << record
+      a
+    end
+    @minions_nodes
+  end
+
+  def loadbalanced_services
+    @loadbalanced_services ||= nil
+    unless @loadbalanced_services 
+      @loadbalanced_services = { :tcp => [], :http => [] }
+    # step: we iterate the service which have load balancers defined
+    exposed_services.each do |service|
+      name = service['metadata']['name']
+      ports = service['spec']['ports'] || []
+      # step: we iterate the ports and match with the load balancer configs
+      ports.each do |port|
+        # step: we check the port is exposed
+        source_port  = port['port']
+        loadbalancer = service['metadata']['annotations'][CONFIG_LB]
+        if loadbalancer[source_port]
+          # step: are we a tcp or http service
+          service_type = loadbalancer[source_port]['type']
+          # DECISION: the destiation port, i.e the port opened by nginx is either the port of the service
+          # or we can overload it in the load balancer config
+          dest_port    = loadbalancer[source_port]['port'] || source_port 
+          # check: ignore any port which does not have a type and highlight as an error
+          unless service_type
+            errors "the service: #{name}, port: #{source_port} does not have a service type: (tcp|http)"
+            next
+          end
+          # check: ignore anything that is not a valid service   
+          unless service_type =~ /^(tcp|http)$/
+            errors "the service: #{name}, port: #{source_port} service type: #{service_type} is invalid"
+            next
+          end
+          # check: perform checks on specific services
+          if service_type == TCP_SERVICE
+            # check: make sure the tcp is not already mapped
+            unless @loadbalanced_services[:tcp].select { |x| x[:port] == dest_port }.empty?
+              service_name = @loadbalanced_services[:tcp][dest_port][:name]
+              errors "the service: #{name}, port: #{dest_port} is alredy is used by service: #{service_name}"
+              next
+            end
+          end
+          # step: add the service to the list
+          exported_service = {
+            :name        => name,
+            :type        => service_type,
+            :uid         => service['metadata']['uid'],
+            :port        => dest_port,
+            :source_port => source_port,
+            :target_port => ((port['nodePort'] != 0) || source_port),
+            :cluster_ip  => (service['spec']['portalIP'] || service['spec']['clusterIP']),
+            :balancer    => loadbalancer[source_port],
+          }
+          # step: add the service to the list
+          @loadbalanced_services[service_type.to_sym] << exported_service
+        end
       end
     end
-    a
+    end
+    @loadbalanced_services
+  end
+
+  def tcp_services
+    loadbalanced_services[TCP_SERVICE.to_sym]
+  end
+
+  def http_services
+    loadbalanced_services[HTTP_SERVICE.to_sym]
   end
 -%>
+# Configuration Errors:
+<%- errors.each do |err| -%>
+# <%= err %>  
+<%- end -%>
 
 daemon off;
 user nginx;
@@ -43,165 +144,21 @@ events {
 ##
 # TCP Service Configs
 ##
-
 stream {
-  <%-
-    tcp_services = {}
-    # step: iterate each of the service with load balancer annotations 
-    balanced.each do |service|
-      name = service['metadata']['name']
-      balancer = service['balancer']
-      # step: iterate each of the ports
-      ( service['spec']['ports'] || []).each do |port|
-        load = balancer[port['port']]
-        # step: skip if the port is not being externally exposed
-        next if load.nil?
-        next unless load['type'] == 'tcp'
-        # step: get the listening port, this is either the port specified in the loadbalancer for 
-        # this port, or defaults to the port of the service
-        bind_port = load['port'] || port['port']
-        # step: check the tcp port is not already in use
-        if tcp_services[bind_port]
-  -%>
-  # skipping service: <%= name %>, port: <%= bind_port %>, already used on service: <%= tcp_services[bind_port] %>
-  <%-
-          next # skip to next port, we can not do this port
-        end
-        tcp_services[bind_port] = name
-  -%>
+  <%- tcp_services.each do |service| -%>
   server {
-    listen <%= load['port'] || port['port'] %>;
-    proxy_pass tcp_<%= name %>;
+    listen <%= service[:port] %>;
+    proxy_pass stream_<%= service[:name] %>;
   }
-  <%-
-    # step: the listening port is either a nodeport or the port itself 
-    listening_port = (port['nodePort'] == 0) ? port['port'] : port['nodePort']
-  -%>
 
-  upstream tcp_<%= name %> {
-    <%- if has_flannel -%>
-    server <%= service['spec']['portalIP'] %>:<%= listening_port %>;
+  upstream stream_<%= service[:name] %> {
+    <%- if has_flannel? -%>
+    server <%= service[:cluster_ip] %>:<%= service[:source_port] %>;
     <%- else -%>
-    <%- @minions.each do |node| -%>
-    server <%= node['spec']['externalID'] %>:<%= listening_port %>;
+    <%- minions.each do |node| -%>
+    server <%= node[:ip] %>:<%= service[:target_port] %>;
     <%- end # end of the minion iteration -%>
     <%- end # end of the flannel check -%>
   }
-  
-    <%- end # end of the port iteration -%>
-  <%- end # end of the service iteration -%>
-}
-
-##
-# Virtual Host Configs
-##
-
-http {
-  sendfile on;
-  tcp_nopush on;
-  tcp_nodelay on;
-  keepalive_timeout 65;
-  types_hash_max_size 2048;
-  server_tokens off;
-
-  # server_names_hash_bucket_size 64;
-  # server_name_in_redirect off;
-
-  include /etc/nginx/mime.types;
-  default_type application/octet-stream;
-
-  <%- if ENV['NGINX_LOGS'] -%>
-  access_log /var/log/nginx/access.log;
-  <%- else -%>
-  access_log off;
-  <%- end -%>
-  error_log /var/log/nginx/error.log;
-  gzip on;
-  gzip_disable "msie6";
-
-  include /etc/nginx/conf.d/*.conf;
-
-  <%- # step: iterate each of the service with load balancer annotations 
-  balanced.each do |service|
-    name = service['metadata']['name']
-    balancer = service['balancer']
-    (service['spec']['ports'] || []).each do |port| 
-      load = balancer[port['port']]
-      # step: skip if the port is not being externally exposed
-      next if load.nil?
-      next unless load['type'] == 'http'
-      # step: get the listening port, this is either the port specified in the loadbalancer for 
-      # this port, or defaults to the port of the service
-      bind_port = load['port'] || port['port']
-      vhost     = load['vhost']
-      # step: if ssl we need to make sure the ssl options are specified, otherwise we comment and skip
-      if load['ssl']
-        ssl = load['ssl'] || {}
-        error = ""
-        error << "you have not specified a key file"  unless ssl['key'] 
-        error << "you have not specified a cart file" unless ssl['cert']
-        unless error.empty?
-  -%>
-  # SSL Service: <%= name %>, skipped, errors: <%= error %>
-  <%-     next 
-        end
-      end
-  -%>
-  server {
-    listen <%= bind_port %>;
-    server_name <%= vhost %>;
-
-    <%- if load['ssl'] -%>
-    <%- ssl = load['ssl'] -%>
-    ssl_certificate           /etc/nginx/ssl/<%= ssl['ssl_cert'] %>;
-    ssl_certificate_key       /etc/nginx/ssl/<%= ssl['ssl_key'] %>;
-
-    ssl on;
-    ssl_session_cache  builtin:1000  shared:SSL:10m;
-    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
-    ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
-    ssl_prefer_server_ciphers on;
-    <%- end -%>
-
-    <%- if load['paths'] -%>
-      <%- load['paths'].each do |path| -%>
-    location <%= path %>/ {
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header Host $http_host;
-      proxy_set_header X-NginX-Proxy true;
-      proxy_pass http_<%= name %>;
-    }
-      <%- end -%>
-    <%- elsif load['defaultPath'] -%>
-    location / {
-      rewrite ^/$ <%= load['defaultPath'] %>/ permanent;
-    }
-    <%- else -%>
-    location / {
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header Host $http_host;
-      proxy_set_header X-NginX-Proxy true;
-      proxy_pass http://<%= name %>;
-    }
-    <%- end -%>
-  }
-
-  <%-
-    # step: the listening port is either a nodeport or the port itself 
-    listening_port = (port['nodePort'] == 0) ? port['port'] : port['nodePort']
-  -%>
-  upstream <%= name %> {
-    <%- if has_flannel -%>
-    server <%= service['spec']['portalIP'] %>:<%= listening_port %>;
-    <%- else -%>
-    <%- @minions.each do |node| -%>
-    server <%= node['spec']['externalID'] %>:<%= listening_port %>;
-    <%- end # end of the minion iteration -%>
-    <%- end # end of the flannel check -%>
-  }
-  
-    <%- end # end of the port iteration -%>
-  <%- end # end of the service iteration -%>
+  <%- end # end of the tcp service iteration -%>
 }
