@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+#   Author: Rohith
+#   Date: 2015-06-25 12:02:58 +0100 (Thu, 25 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+
+fail() {
+  echo "failed: $@"
+  exit 1
+}
+
+# step: copy the current configuration
+cp -f /etc/nginx/nginx.conf /etc/nginx/nginx.conf.saved || fail "unable to make a copy of the current nginx config"
+# step: generate the new config
+/bin/nginx_config -f $1 || fail "unable to generate the new configuration"
+# step: check the config against nginx
+/usr/sbin/nginx -t -c /etc/nginx/nginx.conf || fail "the new configuration is invalid"
+# step: exit safely
+exit 0

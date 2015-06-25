@@ -1,0 +1,207 @@
+#
+#   Author: Rohith
+#   Date: 2015-06-23 15:41:31 +0100 (Tue, 23 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+#
+<%-
+  require 'yaml'
+
+  # step: do we have a flannel network - otherwise we use the minion ip address?
+  has_flannel = !ENV['FLANNEL_ENABLED'].nil?
+
+  # step: we only need to speak with service that have loadbalancer annontation 
+  balanced = @services.inject([]) do |a,service|
+    if ( service['metadata'] || {} )['annotations']
+      begin
+        # step: we only those with loadbalancer annonations 
+        if service['metadata']['annotations']['loadbalancer']
+          service['balancer'] = YAML.load(service['metadata']['annotations']['loadbalancer'])
+          a << service
+        end
+      rescue Exception => e
+-%>
+# load balance config: service: <%= service['metadata']['name'] %> is invalid, please check
+<%-
+      end
+    end
+    a
+  end
+-%>
+
+daemon off;
+user nginx;
+worker_processes 4;
+pid /run/nginx.pid;
+
+events {
+  worker_connections 1024;
+  multi_accept on;
+}
+
+##
+# TCP Service Configs
+##
+
+stream {
+  <%-
+    tcp_services = {}
+    # step: iterate each of the service with load balancer annotations 
+    balanced.each do |service|
+      name = service['metadata']['name']
+      balancer = service['balancer']
+      # step: iterate each of the ports
+      ( service['spec']['ports'] || []).each do |port|
+        load = balancer[port['port']]
+        # step: skip if the port is not being externally exposed
+        next if load.nil?
+        next unless load['type'] == 'tcp'
+        # step: get the listening port, this is either the port specified in the loadbalancer for 
+        # this port, or defaults to the port of the service
+        bind_port = load['port'] || port['port']
+        # step: check the tcp port is not already in use
+        if tcp_services[bind_port]
+  -%>
+  # skipping service: <%= name %>, port: <%= bind_port %>, already used on service: <%= tcp_services[bind_port] %>
+  <%-
+          next # skip to next port, we can not do this port
+        end
+        tcp_services[bind_port] = name
+  -%>
+  server {
+    listen <%= load['port'] || port['port'] %>;
+    proxy_pass tcp_<%= name %>;
+  }
+  <%-
+    # step: the listening port is either a nodeport or the port itself 
+    listening_port = (port['nodePort'] == 0) ? port['port'] : port['nodePort']
+  -%>
+
+  upstream tcp_<%= name %> {
+    <%- if has_flannel -%>
+    server <%= service['spec']['portalIP'] %>:<%= listening_port %>;
+    <%- else -%>
+    <%- @minions.each do |node| -%>
+    server <%= node['spec']['externalID'] %>:<%= listening_port %>;
+    <%- end # end of the minion iteration -%>
+    <%- end # end of the flannel check -%>
+  }
+  
+    <%- end # end of the port iteration -%>
+  <%- end # end of the service iteration -%>
+}
+
+##
+# Virtual Host Configs
+##
+
+http {
+  sendfile on;
+  tcp_nopush on;
+  tcp_nodelay on;
+  keepalive_timeout 65;
+  types_hash_max_size 2048;
+  server_tokens off;
+
+  # server_names_hash_bucket_size 64;
+  # server_name_in_redirect off;
+
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+
+  <%- if ENV['NGINX_LOGS'] -%>
+  access_log /var/log/nginx/access.log;
+  <%- else -%>
+  access_log off;
+  <%- end -%>
+  error_log /var/log/nginx/error.log;
+  gzip on;
+  gzip_disable "msie6";
+
+  include /etc/nginx/conf.d/*.conf;
+
+  <%- # step: iterate each of the service with load balancer annotations 
+  balanced.each do |service|
+    name = service['metadata']['name']
+    balancer = service['balancer']
+    (service['spec']['ports'] || []).each do |port| 
+      load = balancer[port['port']]
+      # step: skip if the port is not being externally exposed
+      next if load.nil?
+      next unless load['type'] == 'http'
+      # step: get the listening port, this is either the port specified in the loadbalancer for 
+      # this port, or defaults to the port of the service
+      bind_port = load['port'] || port['port']
+      vhost     = load['vhost']
+      # step: if ssl we need to make sure the ssl options are specified, otherwise we comment and skip
+      if load['ssl']
+        ssl = load['ssl'] || {}
+        error = ""
+        error << "you have not specified a key file"  unless ssl['key'] 
+        error << "you have not specified a cart file" unless ssl['cert']
+        unless error.empty?
+  -%>
+  # SSL Service: <%= name %>, skipped, errors: <%= error %>
+  <%-     next 
+        end
+      end
+  -%>
+  server {
+    listen <%= bind_port %>;
+    server_name <%= vhost %>;
+
+    <%- if load['ssl'] -%>
+    <%- ssl = load['ssl'] -%>
+    ssl_certificate           /etc/nginx/ssl/<%= ssl['ssl_cert'] %>;
+    ssl_certificate_key       /etc/nginx/ssl/<%= ssl['ssl_key'] %>;
+
+    ssl on;
+    ssl_session_cache  builtin:1000  shared:SSL:10m;
+    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
+    ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
+    ssl_prefer_server_ciphers on;
+    <%- end -%>
+
+    <%- if load['paths'] -%>
+      <%- load['paths'].each do |path| -%>
+    location <%= path %>/ {
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-NginX-Proxy true;
+      proxy_pass http_<%= name %>;
+    }
+      <%- end -%>
+    <%- elsif load['defaultPath'] -%>
+    location / {
+      rewrite ^/$ <%= load['defaultPath'] %>/ permanent;
+    }
+    <%- else -%>
+    location / {
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-NginX-Proxy true;
+      proxy_pass http://<%= name %>;
+    }
+    <%- end -%>
+  }
+
+  <%-
+    # step: the listening port is either a nodeport or the port itself 
+    listening_port = (port['nodePort'] == 0) ? port['port'] : port['nodePort']
+  -%>
+  upstream <%= name %> {
+    <%- if has_flannel -%>
+    server <%= service['spec']['portalIP'] %>:<%= listening_port %>;
+    <%- else -%>
+    <%- @minions.each do |node| -%>
+    server <%= node['spec']['externalID'] %>:<%= listening_port %>;
+    <%- end # end of the minion iteration -%>
+    <%- end # end of the flannel check -%>
+  }
+  
+    <%- end # end of the port iteration -%>
+  <%- end # end of the service iteration -%>
+}

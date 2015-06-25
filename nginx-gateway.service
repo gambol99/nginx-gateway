@@ -1,0 +1,28 @@
+#
+#   Author: Rohith
+#   Date: 2015-06-23 15:45:42 +0100 (Tue, 23 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+
+[Unit]
+Description=Nginx Gateway
+Documentation=http://github.com/gambol99/docker-nginx-gateway
+Requires=fleet.service 
+Requires=docker.service
+After=fleet.service 
+After=docker.service
+
+[Service]
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=0
+
+ExecStartPre=-/usr/bin/docker kill nginx-gateway
+ExecStartPre=-/usr/bin/docker rm nginx-gateway
+ExecStartPre=/usr/bin/docker pull gambol99/nginx-gateway
+ExecStart=/usr/bin/docker run --name nginx-gateway --net=host gambol99/nginx-gateway
+
+[X-Fleet]
+Global=true
+MachineMetadata=nginx-gateway=true

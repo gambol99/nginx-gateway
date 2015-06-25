@@ -1,0 +1,12 @@
+#
+#   Author: Rohith
+#   Date: 2015-06-23 15:31:41 +0100 (Tue, 23 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+[nginx]
+name=Nginx Packages
+baseurl=http://nginx.org/packages/mainline/centos/7/x86_64/
+enabled=1
+gpgcheck=0
+skip_if_unavailable=False

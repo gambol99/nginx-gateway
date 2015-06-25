@@ -1,0 +1,10 @@
+{
+  "services" : [
+     {{ range $index, $spec := getvs "/registry/services/specs/*/*" }}{{ if $index }}, {{ end }}{{ $spec }}
+     {{ end }}
+  ],
+  "minions" : [
+    {{ range $index, $spec := getvs "/registry/minions/*" }}{{ if $index }}, {{ end }}{{ $spec }}
+    {{ end }}
+  ]
+}

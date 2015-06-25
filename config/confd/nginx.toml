@@ -1,0 +1,19 @@
+#
+#   Author: Rohith
+#   Date: 2015-06-23 15:42:09 +0100 (Tue, 23 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+
+[template]
+src   = "nginx.conf.tmpl"
+dest  = "/etc/nginx/config.json"
+keys  = [ 
+  "/registry/services/specs/",
+  "/registry/minions",
+]
+owner = "root"
+mode  = "0444"
+
+reload_cmd = "/usr/sbin/nginx -s reload"
+check_cmd  = "/bin/nginx_check {{ .src }}"

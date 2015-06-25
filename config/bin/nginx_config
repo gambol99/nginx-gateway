@@ -1,0 +1,83 @@
+#!/usr/bin/ruby
+#
+#   Author: Rohith
+#   Date: 2015-06-23 17:55:09 +0100 (Tue, 23 Jun 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+require 'erb'
+require 'json'
+require 'optparse'
+
+module Nginx
+  class Render
+    def initialize(scope = {})
+      scope.each_pair do |k,v|
+        self.instance_variable_set("@#{k}", v)
+      end
+    end
+
+    def render(filename)
+      ERB.new(File.read(filename), nil, '-').result(binding)
+    end
+  end
+
+  class Config
+    def initialize
+      parser.parse! 
+      generate_config
+    end
+
+    private
+    def generate_config
+      # step: check the files exists and is readable
+      validate_file(options[:tmpl], "template file")
+      # step: load the configuration
+      config  = load_configuration(options[:cfg])
+      # step: generate the config
+      content = Nginx::Render.new(config).render(options[:tmpl])
+      # step: write the source to the destination
+      File.open(options[:dest], "w") { |fd| fd.write(content) } 
+    end
+
+    def load_configuration(filename)
+      validate_file(filename, "config file")
+      JSON.parse(File.read(filename))
+    end
+
+    def validate_file(filename, name)
+      raise ArgumentError, "you have not specified a #{name}" unless filename
+      raise ArgumentError, "the #{filename} does not exist" unless File.exist? filename
+      raise ArgumentError, "the #{filename} is not a regular file" unless File.file? filename
+      raise ArgumentError, "the #{filename} is not readable" unless File.readable? filename
+      filename
+    end
+
+    def options
+      @options ||= default_options
+    end
+
+    def default_options
+      {
+        :tmpl => '/etc/nginx/nginx.erb',
+        :cfg  => '/etc/nginx/config.json',
+        :dest => '/etc/nginx/nginx.conf',
+      }
+    end
+
+    def parser
+      @parser ||= OptionParser.new do|opts|
+        opts.banner = "Usage: #{__FILE__} -f|--file CONFIG_JSON"
+        opts.on( '-f', '--file FILE', "the file containing the configuration data (defaults to #{options[:cfg]})") { |x| options[:cfg]  = x }
+        opts.on( '-d PATH', '--dest PATH', "the path to save the generated file (defaults to #{options[:dest]})")  { |x| options[:dest] = x }
+        opts.on( '-t TEMPLATE', '--template TEMPLATE', "the template to generate the config from (defaults to #{options[:tmpl]})") { |x| options[:tmpl] = x }
+        opts.on( '-h', '--help', 'display this usage menu') do
+          puts opts
+          exit
+        end
+      end
+    end
+  end
+end
+
+Nginx::Config.new
