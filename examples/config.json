@@ -1,0 +1,379 @@
+{
+  "services": [
+    {
+      "kind": "Service",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "gitlab-mysql",
+        "namespace": "default",
+        "uid": "d998c0b0-1be2-11e5-8e99-080027833f66",
+        "creationTimestamp": "2015-06-26T09:08:03Z",
+        "annotations": {
+          "loadbalancer": "3306:\n  port: 3301\n  type: tcp  \n"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "protocol": "TCP",
+            "port": 3306,
+            "targetPort": 3306,
+            "nodePort": 0
+          }
+        ],
+        "selector": {
+          "name": "gitlab-mysql"
+        },
+        "portalIP": "10.101.100.101",
+        "type": "ClusterIP",
+        "sessionAffinity": "None"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "gitlab-redis",
+        "namespace": "default",
+        "uid": "b26d1a2f-1be2-11e5-8e99-080027833f66",
+        "creationTimestamp": "2015-06-26T09:06:57Z",
+        "labels": {
+          "name": "gitlab-redis",
+          "role": "service"
+        },
+        "annotations": {
+          "loadbalancer": "6379:\n  type: tcp  \n"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "protocol": "TCP",
+            "port": 6379,
+            "targetPort": 6379,
+            "nodePort": 0
+          }
+        ],
+        "selector": {
+          "name": "gitlab-redis"
+        },
+        "portalIP": "10.101.100.100",
+        "type": "ClusterIP",
+        "sessionAffinity": "None"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "gitlab-web",
+        "namespace": "default",
+        "uid": "04f94fd1-1be3-11e5-8e99-080027833f66",
+        "creationTimestamp": "2015-06-26T09:09:15Z",
+        "labels": {
+          "name": "gitlab-web"
+        },
+        "annotations": {
+          "loadbalancer": "80:\n  type: http\n  port: 8081\n  vhost: gitlab.example.com\n"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "http",
+            "protocol": "TCP",
+            "port": 80,
+            "targetPort": 80,
+            "nodePort": 0
+          },
+          {
+            "name": "https",
+            "protocol": "TCP",
+            "port": 443,
+            "targetPort": 443,
+            "nodePort": 0
+          }
+        ],
+        "selector": {
+          "name": "gitlab-web"
+        },
+        "portalIP": "10.101.102.51",
+        "type": "ClusterIP",
+        "sessionAffinity": "None"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "gitlab-web1",
+        "namespace": "default",
+        "uid": "ed1da3bf-1be3-11e5-8e99-080027833f66",
+        "creationTimestamp": "2015-06-26T09:15:45Z",
+        "labels": {
+          "name": "gitlab-web1"
+        },
+        "annotations": {
+          "loadbalancer": "80:\n  type: http\n  port: 8082\n  vhost: gitlab.example.com\n"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "http",
+            "protocol": "TCP",
+            "port": 80,
+            "targetPort": 80,
+            "nodePort": 0
+          },
+          {
+            "name": "https",
+            "protocol": "TCP",
+            "port": 443,
+            "targetPort": 443,
+            "nodePort": 0
+          }
+        ],
+        "selector": {
+          "name": "gitlab-web1"
+        },
+        "portalIP": "10.101.222.204",
+        "type": "ClusterIP",
+        "sessionAffinity": "None"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "kubernetes",
+        "namespace": "default",
+        "creationTimestamp": null,
+        "labels": {
+          "component": "apiserver",
+          "provider": "kubernetes"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "protocol": "TCP",
+            "port": 443,
+            "targetPort": 0,
+            "nodePort": 0
+          }
+        ],
+        "portalIP": "10.101.0.2",
+        "sessionAffinity": "None"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "kubernetes-ro",
+        "namespace": "default",
+        "creationTimestamp": null,
+        "labels": {
+          "component": "apiserver",
+          "provider": "kubernetes"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "protocol": "TCP",
+            "port": 80,
+            "targetPort": 0,
+            "nodePort": 0
+          }
+        ],
+        "portalIP": "10.101.0.1",
+        "sessionAffinity": "None"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    }
+  ],
+  "minions": [
+    {
+      "kind": "Node",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "10.250.1.203",
+        "selfLink": "/api/v1beta3/nodes/10.250.1.203",
+        "uid": "6c6b3e9e-1bde-11e5-8e99-080027833f66",
+        "resourceVersion": "26196",
+        "creationTimestamp": "2015-06-26T08:36:22Z",
+        "labels": {
+          "cluster": "dev",
+          "host": "core",
+          "id": "1",
+          "kubernetes": "true",
+          "location": "dev",
+          "role": "minion"
+        }
+      },
+      "spec": {
+        "externalID": "10.250.1.203"
+      },
+      "status": {
+        "capacity": {
+          "cpu": "0m",
+          "memory": "0m",
+          "pods": "100"
+        },
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastHeartbeatTime": "2015-06-26T10:11:00Z",
+            "lastTransitionTime": "2015-06-26T08:36:22Z",
+            "reason": "kubelet is posting ready status"
+          }
+        ],
+        "addresses": [
+          {
+            "type": "LegacyHostIP",
+            "address": "10.250.1.203"
+          }
+        ],
+        "nodeInfo": {
+          "machineID": "",
+          "systemUUID": "",
+          "bootID": "",
+          "kernelVersion": "",
+          "osImage": "",
+          "containerRuntimeVersion": "",
+          "kubeletVersion": "",
+          "kubeProxyVersion": ""
+        }
+      }
+    },
+    {
+      "kind": "Node",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "10.250.1.204",
+        "selfLink": "/api/v1beta3/nodes/10.250.1.204",
+        "uid": "6c719fad-1bde-11e5-8e99-080027833f66",
+        "resourceVersion": "26162",
+        "creationTimestamp": "2015-06-26T08:36:22Z",
+        "labels": {
+          "cluster": "dev",
+          "host": "core",
+          "id": "2",
+          "kubernetes": "true",
+          "location": "dev",
+          "role": "minion"
+        }
+      },
+      "spec": {
+        "externalID": "10.250.1.204"
+      },
+      "status": {
+        "capacity": {
+          "cpu": "0m",
+          "memory": "0m",
+          "pods": "100"
+        },
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastHeartbeatTime": "2015-06-26T10:10:52Z",
+            "lastTransitionTime": "2015-06-26T08:36:23Z",
+            "reason": "kubelet is posting ready status"
+          }
+        ],
+        "addresses": [
+          {
+            "type": "LegacyHostIP",
+            "address": "10.250.1.204"
+          }
+        ],
+        "nodeInfo": {
+          "machineID": "",
+          "systemUUID": "",
+          "bootID": "",
+          "kernelVersion": "",
+          "osImage": "",
+          "containerRuntimeVersion": "",
+          "kubeletVersion": "",
+          "kubeProxyVersion": ""
+        }
+      }
+    },
+    {
+      "kind": "Node",
+      "apiVersion": "v1beta3",
+      "metadata": {
+        "name": "10.250.1.205",
+        "selfLink": "/api/v1beta3/nodes/10.250.1.205",
+        "uid": "6c76d212-1bde-11e5-8e99-080027833f66",
+        "resourceVersion": "26164",
+        "creationTimestamp": "2015-06-26T08:36:22Z",
+        "labels": {
+          "cluster": "dev",
+          "host": "core",
+          "id": "3",
+          "kubernetes": "true",
+          "location": "dev",
+          "role": "minion"
+        }
+      },
+      "spec": {
+        "externalID": "10.250.1.205"
+      },
+      "status": {
+        "capacity": {
+          "cpu": "0m",
+          "memory": "0m",
+          "pods": "100"
+        },
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastHeartbeatTime": "2015-06-26T10:10:53Z",
+            "lastTransitionTime": "2015-06-26T08:36:25Z",
+            "reason": "kubelet is posting ready status"
+          }
+        ],
+        "addresses": [
+          {
+            "type": "LegacyHostIP",
+            "address": "10.250.1.205"
+          }
+        ],
+        "nodeInfo": {
+          "machineID": "",
+          "systemUUID": "",
+          "bootID": "",
+          "kernelVersion": "",
+          "osImage": "",
+          "containerRuntimeVersion": "",
+          "kubeletVersion": "",
+          "kubeProxyVersion": ""
+        }
+      }
+    }
+  ],
+  "ssl": []
+}
