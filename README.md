@@ -68,4 +68,4 @@ Note: at the moment the virtualhost on the same port are not consolidated, i.e s
 
 ##### **Flannel & Service Ports** 
  
-By passing the -e FLANNEL_ENABED=true flag into the container, the config generated assumed the docker host it's running on is a member or at the very least mapped into the flannel network and will thus use the portalIP / clusterIP to access the services. If the flag is not enabled we assume the service is being exposed via the NodePort or PublicIPs and use the minion ip addresses at the upstream backends in nginx.
+By passing the -e FLANNEL_ENABLED=true flag into the container, the config generated assumed the docker host it's running on is a member or at the very least mapped into the flannel network and will thus use the portalIP / clusterIP to access the services. If the flag is not enabled we assume the service is being exposed via the NodePort or PublicIPs and use the minion ip addresses at the upstream backends in nginx.

@@ -30,105 +30,128 @@
     @errors
   end
 
-  # description: process each of the service and extract anything that is requesting load balanacing
+  def metadata(service)
+    service['metadata']
+  end
+
+  def spec(service)
+    service['spec']
+  end
+
+  def service_name(service)
+    metadata(service)['name']
+  end
+
+  def service_ports(service)
+    spec(service)['ports'] || []
+  end
+
+  def annotations(service)
+    metadata(service)['annotations']
+  end
+
+  # description: process each of the services, filter out anything that is not exposing a service via a load balancer 
+  # and decode the config back into the service
   def exposed_services
-    @exposed_services ||= @services.inject([]) do |a,service|
-      name = service['metadata']['name']
-      metadata = service['metadata'] || {} 
-      if metadata['annotations']
-        annotations = metadata['annotations']
+    @exposed_services ||= nil
+    unless @exposed_services
+      @exposed_services = []
+      @services.each do |service|
+        # step: filter out what we don't care about
+        next unless annotations(service)
+        next unless annotations(service)[CONFIG_LB]
+        # step: extract the configuration
         begin
-          # step: we only those with loadbalancer annonations 
-          if annotations[CONFIG_LB]
-            annotations[CONFIG_LB] = YAML.load(annotations[CONFIG_LB])
-            a << service
-          end
-        rescue Exception => e 
-          errors "unable to extract the load balancer config for service: #{name}, error: #{e}"
+          annotations(service)[CONFIG_LB] = YAML.load(annotations(service)[CONFIG_LB])
+          @exposed_services << service 
+        rescue Exception => e
+          errors "unable to extract the load balancer config for service: #{service_name(service)}, error: #{e}"  
         end
       end
-      a
     end
     @exposed_services
   end
 
+  # description: extract the minion / nodes, normalize the data and return it
   def minions
-    @minions_nodes ||= @minions.inject([]) do |a,node|
-      record = {
-        :name => node['metadata']['name'],
-        :ip   => node['spec']['externalID'],
-      }
-      a << record
-      a
+    @nodes ||= nil
+    unless @nodes 
+      @nodes = []
+      @minions.each do |node|
+        @nodes << {
+          :name => node['metadata']['name'],
+          :ip   => node['spec']['externalID'],
+        }
+      end
     end
-    @minions_nodes
+    @nodes
   end
 
-  def loadbalanced_services
-    @loadbalanced_services ||= nil
-    unless @loadbalanced_services 
-      @loadbalanced_services = { :tcp => [], :http => [] }
-    # step: we iterate the service which have load balancers defined
-    exposed_services.each do |service|
-      name = service['metadata']['name']
-      ports = service['spec']['ports'] || []
-      # step: we iterate the ports and match with the load balancer configs
-      ports.each do |port|
-        # step: we check the port is exposed
-        source_port  = port['port']
-        loadbalancer = service['metadata']['annotations'][CONFIG_LB]
-        if loadbalancer[source_port]
-          # step: are we a tcp or http service
-          service_type = loadbalancer[source_port]['type']
-          # DECISION: the destiation port, i.e the port opened by nginx is either the port of the service
-          # or we can overload it in the load balancer config
-          dest_port    = loadbalancer[source_port]['port'] || source_port 
-          # check: ignore any port which does not have a type and highlight as an error
-          unless service_type
-            errors "the service: #{name}, port: #{source_port} does not have a service type: (tcp|http)"
-            next
-          end
-          # check: ignore anything that is not a valid service   
-          unless service_type =~ /^(tcp|http)$/
-            errors "the service: #{name}, port: #{source_port} service type: #{service_type} is invalid"
-            next
-          end
-          # check: perform checks on specific services
-          if service_type == TCP_SERVICE
-            # check: make sure the tcp is not already mapped
-            unless @loadbalanced_services[:tcp].select { |x| x[:port] == dest_port }.empty?
-              service_name = @loadbalanced_services[:tcp][dest_port][:name]
-              errors "the service: #{name}, port: #{dest_port} is alredy is used by service: #{service_name}"
+  # description: processes each of the services and normalizes them into individual tcp, http services 
+  # prepping for consumption via the erb below
+  def services
+    @extract_services ||= nil
+    unless @extract_services 
+      @extract_services = { :tcp => [], :http => [] }
+      # step: we iterate the services which have load balancers defined
+      exposed_services.each do |service|
+        name  = service_name(service)
+        # step: we iterate the ports and match with the load balancer configs
+        service_ports(service).each do |port|
+          # step: we check the port is exposed
+          source_port  = port['port']
+          lb = annotations(service)[CONFIG_LB]
+          # step: does the load balancer have config for this port?
+          if lb[source_port]
+            # step: are we a tcp or http service
+            service_type = lb[source_port]['type']
+            # DECISION: the destination port, i.e the port opened by nginx is either the port of the service
+            # or we can overload it in the load balancer config
+            dest_port    = lb[source_port]['port'] || source_port 
+            # check: ignore any port which does not have a type and highlight as an error
+            unless service_type
+              errors "the service: #{name}, port: #{source_port} does not have a service type: (tcp|http)"
               next
             end
+            # check: ignore anything that is not a valid service   
+            unless service_type =~ /^(tcp|http)$/
+              errors "the service: #{name}, port: #{source_port} service type: #{service_type} is invalid"
+              next
+            end
+            # check: perform checks on specific services
+            if service_type == TCP_SERVICE
+              # check: make sure the tcp is not already mapped
+              unless @extract_services[:tcp].select { |x| x[:port] == dest_port }.empty?
+                service_name = @extract_services[:tcp][dest_port][:name]
+                errors "the service: #{name}, port: #{dest_port} is alredy is used by service: #{service_name}"
+                next
+              end
+            end
+            # step: normalize and add the service to the list
+            exported_service = {
+              :name        => name,
+              :namespace   => metadata(service)['namespace'],
+              :port        => dest_port,
+              :source_port => source_port,
+              :target_port => ((port['nodePort'] != 0) ? port['nodePort'] : source_port),
+              :cluster_ip  => (spec(service)['portalIP'] || spec(service)['clusterIP']),
+              :balancer    => lb[source_port],
+            }
+            # step: add the service to the list
+            @extract_services[service_type.to_sym] << exported_service
           end
-          # step: add the service to the list
-          exported_service = {
-            :name        => name,
-            :type        => service_type,
-            :namespace   => service['metadata']['namespace'],
-            :uid         => service['metadata']['uid'],
-            :port        => dest_port,
-            :source_port => source_port,
-            :target_port => ((port['nodePort'] != 0) ? port['nodePort'] : source_port),
-            :cluster_ip  => (service['spec']['portalIP'] || service['spec']['clusterIP']),
-            :balancer    => loadbalancer[source_port],
-          }
-          # step: add the service to the list
-          @loadbalanced_services[service_type.to_sym] << exported_service
         end
       end
     end
-    end
-    @loadbalanced_services
+    @extract_services
   end
 
   def tcp_services
-    loadbalanced_services[TCP_SERVICE.to_sym]
+    services[TCP_SERVICE.to_sym]
   end
 
   def http_services
-    loadbalanced_services[HTTP_SERVICE.to_sym]
+    services[HTTP_SERVICE.to_sym]
   end
 
   # collates and merges the vhosts into indiviual services, allowing us to run
@@ -144,6 +167,7 @@
         port     = service[:port]
         key      = "#{port}:#{site}"
         if sites.has_key?(key)
+          # step: we 
 
         else
           vhost_services << service 

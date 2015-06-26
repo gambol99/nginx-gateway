@@ -37,12 +37,20 @@ module Nginx
       # step: generate the config
       content = Nginx::Render.new(config).render(options[:tmpl])
       # step: write the source to the destination
-      File.open(options[:dest], "w") { |fd| fd.write(content) } 
+      print_config(content) 
     end
 
     def load_configuration(filename)
       validate_file(filename, "config file")
       JSON.parse(File.read(filename))
+    end
+
+    def print_config(content)
+      if options[:dryrun]
+        puts content
+      else
+        File.open(options[:dest], "w") { |fd| fd.write(content) } 
+      end
     end
 
     def validate_file(filename, name)
@@ -71,6 +79,7 @@ module Nginx
         opts.on( '-f', '--file FILE', "the file containing the configuration data (defaults to #{options[:cfg]})") { |x| options[:cfg]  = x }
         opts.on( '-d PATH', '--dest PATH', "the path to save the generated file (defaults to #{options[:dest]})")  { |x| options[:dest] = x }
         opts.on( '-t TEMPLATE', '--template TEMPLATE', "the template to generate the config from (defaults to #{options[:tmpl]})") { |x| options[:tmpl] = x }
+        opts.on( '-D', '--dryrun', 'perform a dry run, i.e. generate the config and print to screen') { options[:dryrun] = true }
         opts.on( '-h', '--help', 'display this usage menu') do
           puts opts
           exit
