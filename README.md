@@ -19,6 +19,53 @@ The NGINX Gateway (version 1.9.2 with stream module) is a small container servic
 
 Once the data is in the config file: /bin/nginx_check is used to generate the nginx config, with in ruby erb. At the moment the container is pushed out via fleet and mapped to the docker host network (--net=host) so we don't have to preconfigure ports. 
 
+##### **Services**
+
+The load balancer config is store in the annontation of the service descriptor. Note, due to the fact that kubernetes wont allow complex types in annotation, i.e. will only support simple key values, I encode the content as a yaml string.
+
+    apiVersion: v1beta3
+    kind: Service
+    metadata:
+      labels:
+        name: gitlab-redis
+        role: service
+      name: gitlab-redis
+      annotations:
+        loadbalancer: |
+          6379:
+            # port: PORT  
+            type: tcp  
+    spec:
+      portalIP: 10.101.100.100
+      ports:
+        - port: 6379
+          targetPort: 6379
+      selector:
+        name: gitlab-redis
+
+By default services use 'port' from the spec as the externally exposed spec, though this can be override using 'port' in the loadbalacer section. For websites
+  
+    apiVersion: v1beta3
+    kind: Service
+    metadata:
+      labels:
+        name: gitlab-web
+      name: gitlab-web
+      annotations:
+        loadbalancer: |
+          80:
+            type: http
+            vhost: gitlab.example.com
+            # paths: [] # optional nginx locations
+          443:
+            type: http
+            vhost: gitlab.example.com
+            ssl:
+              key: <filename>
+              cert: <filename>
+
+Note: at the moment the virtualhost on the same port are not consolidated, i.e say you have site X and you have Y backends which you wish to serve on different locations | url's; so / goes to default, /admin goes to backend 1 etc etc. At the moment, i'm not preprocessing the vhosts to perform this, a hash of vhost:port is maintained to ensure you dont try and add the same vhost on the same port.
+
 ##### **Flannel & Service Ports** 
  
 By passing the -e FLANNEL_ENABED=true flag into the container, the config generated assumed the docker host it's running on is a member or at the very least mapped into the flannel network and will thus use the portalIP / clusterIP to access the services. If the flag is not enabled we assume the service is being exposed via the NodePort or PublicIPs and use the minion ip addresses at the upstream backends in nginx.
