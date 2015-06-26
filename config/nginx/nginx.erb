@@ -110,7 +110,7 @@
             :uid         => service['metadata']['uid'],
             :port        => dest_port,
             :source_port => source_port,
-            :target_port => ((port['nodePort'] != 0) || source_port),
+            :target_port => ((port['nodePort'] != 0) ? port['nodePort'] : source_port),
             :cluster_ip  => (service['spec']['portalIP'] || service['spec']['clusterIP']),
             :balancer    => loadbalancer[source_port],
           }
@@ -223,10 +223,22 @@ http {
   include /etc/nginx/conf.d/*.conf;
 
   <%- 
+    sites = {}
     http_services.each do |service|
       name     = service[:name] 
       balancer = service[:balancer]
       vhost    = balancer['vhost'] || 'default'
+      key      = "#{vhost}:#{service[:port]}"
+      if sites.has_key?(key)
+        # choice: for the MOMENT we are skipping multiple vhosts, as these need to be consolidated
+        # to work *WIP*
+  -%>
+  # skipping virtual host: <%= vhost %>:<%= service[:port] %>, this has already been used by service: <%= sites[vhost] %>      
+  <%-
+        next
+      end
+      # step: add the site to the list of provisioned sites
+      sites[key] = name
   -%>
   server {
     listen <%= service[:port] %>;

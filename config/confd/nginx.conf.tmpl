@@ -6,6 +6,6 @@
   "minions" : [
     {{ range $index, $spec := getvs "/registry/minions/*" }}{{ if $index }}, {{ end }}{{ $spec }}
     {{ end }}
-  ]
+  ],
   "ssl" : []
 }
