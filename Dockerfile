@@ -10,7 +10,7 @@ MAINTAINER Rohith <gambol99@gmail.com>
 
 ADD config/nginx/nginx.repo /etc/yum.repos.d/nginx.repo
 
-RUN yum install -y --disablerepo=epel --disableplugin=fastestmirror nginx-1.9.2 ruby vim
+RUN yum install -y --disablerepo=epel --disableplugin=fastestmirror nginx-1.9.2 ruby
 
 ADD config/confd/nginx.toml /etc/confd/conf.d/nginx.toml
 ADD config/confd/nginx.conf.tmpl /etc/confd/templates/nginx.conf.tmpl
