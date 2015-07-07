@@ -301,6 +301,7 @@ http {
       proxy_set_header Host $http_host;
       proxy_set_header X-NginX-Proxy true;
       proxy_pass http://<%= name %>;
+      health_check interval=5s;
     }
     <%- end -%>
   }
