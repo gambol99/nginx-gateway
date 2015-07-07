@@ -24,6 +24,5 @@ ADD config/supervisord/nginx.ini /etc/supervisord.d/nginx.ini
 RUN chmod +x /bin/nginx_config /bin/nginx_check
 
 ENV ETCD_HOSTS 127.0.0.1:4001
-ENV FLANNEL_ENABLED true
 
 ENTRYPOINT [ "/usr/bin/supervisord", "-n" ]

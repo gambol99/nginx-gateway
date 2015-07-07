@@ -21,7 +21,9 @@ TimeoutStartSec=0
 ExecStartPre=-/usr/bin/docker kill nginx-gateway
 ExecStartPre=-/usr/bin/docker rm nginx-gateway
 ExecStartPre=/usr/bin/docker pull gambol99/nginx-gateway
-ExecStart=/usr/bin/docker run --name nginx-gateway --net=host gambol99/nginx-gateway
+ExecStart=/usr/bin/docker run --name nginx-gateway \
+  --net=host \
+  gambol99/nginx-gateway
 
 [X-Fleet]
 Global=true
