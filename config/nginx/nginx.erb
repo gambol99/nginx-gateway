@@ -153,30 +153,6 @@
   def http_services
     services[HTTP_SERVICE.to_sym]
   end
-
-  # collates and merges the vhosts into indiviual services, allowing us to run
-  def vhost_sites
-    @vhost_services ||= nil
-    unless @vhost_services
-      @vhost_services = []
-      sites = {}
-      http_services.each do |service|
-        name     = service[:name]
-        balancer = service[:balancer]
-        site     = balancer['vhost'] || 'default'
-        port     = service[:port]
-        key      = "#{port}:#{site}"
-        if sites.has_key?(key)
-          # step: we 
-
-        else
-          vhost_services << service 
-          sites[key] = true  
-        end
-      end
-    end
-    @vhost_services
-  end
 -%>
 
 # Configuration Errors:
@@ -287,7 +263,7 @@ http {
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header Host $http_host;
       proxy_set_header X-NginX-Proxy true;
-      proxy_pass http_<%= name %>;
+      proxy_pass http://<%= name %>;
     }
       <%- end -%>
     <%- elsif balancer['defaultPath'] -%>
