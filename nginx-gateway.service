@@ -21,7 +21,7 @@ TimeoutStartSec=0
 ExecStartPre=-/usr/bin/docker kill nginx-gateway
 ExecStartPre=-/usr/bin/docker rm nginx-gateway
 ExecStartPre=/usr/bin/docker pull gambol99/nginx-gateway
-ExecStartPre=-/usr/bin/etcdctl mkdir /certs
+ExecStartPre=-/usr/bin/etcdctl mk /certs
 ExecStart=/usr/bin/docker run --name nginx-gateway \
   --net=host \
   gambol99/nginx-gateway
