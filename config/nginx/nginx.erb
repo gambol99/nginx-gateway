@@ -270,8 +270,8 @@ http {
     <%- if balancer['ssl'] -%>
     <%- ssl = balancer['ssl'] -%>
     
-    ssl_certificate           /etc/nginx/ssl/<%= ssl['cert'] %>;
-    ssl_certificate_key       /etc/nginx/ssl/<%= ssl['key'] %>;
+    ssl_certificate           <%= ssl['cert'] %>;
+    ssl_certificate_key       <%= ssl['key'] %>;
 
     ssl on;
     ssl_session_cache  builtin:1000  shared:SSL:10m;

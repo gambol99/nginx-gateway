@@ -7,5 +7,8 @@
     {{ range $index, $spec := getvs "/registry/minions/*" }}{{ if $index }}, {{ end }}{{ $spec }}
     {{ end }}
   ],
-  "ssl" : []
+  "ssl" : [
+    {{ range $index, $content := getvs "/certs/*" }}{{ if $index }}, {{ end }}{{ $content }}
+    {{ end }}
+  ]
 }

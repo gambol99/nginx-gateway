@@ -12,6 +12,7 @@ keys  = [
   "/registry/services/specs/",
   "/registry/services/endpoints/",
   "/registry/minions",
+  "/certs",
 ]
 owner = "root"
 mode  = "0444"

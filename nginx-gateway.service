@@ -14,13 +14,14 @@ After=fleet.service
 After=docker.service
 
 [Service]
-Restart=on-failure
+Restart=on-failure 
 RestartSec=5
 TimeoutStartSec=0
 
 ExecStartPre=-/usr/bin/docker kill nginx-gateway
 ExecStartPre=-/usr/bin/docker rm nginx-gateway
 ExecStartPre=/usr/bin/docker pull gambol99/nginx-gateway
+ExecStartPre=-/usr/bin/etcdctl mkdir /certs
 ExecStart=/usr/bin/docker run --name nginx-gateway \
   --net=host \
   gambol99/nginx-gateway

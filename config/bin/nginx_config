@@ -8,6 +8,7 @@
 require 'erb'
 require 'json'
 require 'optparse'
+require 'fileutils'
 
 module Nginx
   class Render
@@ -34,6 +35,8 @@ module Nginx
       validate_file(options[:tmpl], "template file")
       # step: load the configuration
       config  = load_configuration(options[:cfg])
+      # step: write any certifactes to the cert directory
+      load_certificates(config['certs'] || [])
       # step: generate the config
       content = Nginx::Render.new(config).render(options[:tmpl])
       # step: write the source to the destination
@@ -43,6 +46,23 @@ module Nginx
     def load_configuration(filename)
       validate_file(filename, "config file")
       JSON.parse(File.read(filename))
+    end
+
+    def load_certificates(certs)
+      # step: write the certifactes to the directory 
+      certs.each do |cert|
+        # check: unless it's a hash we continue
+        next unless cert.is_a?(Hash)
+        # check: skip unless we have filename and content
+        next unless cert['filename']
+        next unless cert['content']
+        # step: write the file to the directory 
+        filename = "#{cert['filename']}"
+        # step: ensure the base directory exists
+        FileUtils.mkdir_p(File.dirname(filename))
+        # step: write the content to the file
+        File.open(filename, "w") { |fd| fd.write(cert['content']) }
+      end
     end
 
     def print_config(content)
@@ -67,9 +87,9 @@ module Nginx
 
     def default_options
       {
-        :tmpl => '/etc/nginx/nginx.erb',
-        :cfg  => '/etc/nginx/config.json',
-        :dest => '/etc/nginx/nginx.conf',
+        :tmpl   => '/etc/nginx/nginx.erb',
+        :cfg    => '/etc/nginx/config.json',
+        :dest   => '/etc/nginx/nginx.conf',
       }
     end
 
