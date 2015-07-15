@@ -50,7 +50,7 @@
     metadata(service)['annotations']
   end
 
-  # description: process each of the services, filter out anything that is not exposing a service via a load balancer 
+  # description: process each of the services, filter out anything that is not exposing a service via a load balancer
   # and decode the config back into the service
   def exposed_services
     @exposed_services ||= nil
@@ -63,9 +63,9 @@
         # step: extract the configuration
         begin
           annotations(service)[CONFIG_LB] = YAML.load(annotations(service)[CONFIG_LB])
-          @exposed_services << service 
+          @exposed_services << service
         rescue Exception => e
-          errors "unable to extract the load balancer config for service: #{service_name(service)}, error: #{e}"  
+          errors "unable to extract the load balancer config for service: #{service_name(service)}, error: #{e}"
         end
       end
     end
@@ -75,7 +75,7 @@
   # description: extract the minion / nodes, normalize the data and return it
   def minions
     @nodes ||= nil
-    unless @nodes 
+    unless @nodes
       @nodes = []
       @minions.each do |node|
         @nodes << {
@@ -87,11 +87,11 @@
     @nodes
   end
 
-  # description: processes each of the services and normalizes them into individual tcp, http services 
+  # description: processes each of the services and normalizes them into individual tcp, http services
   # prepping for consumption via the erb below
   def services
     @extract_services ||= nil
-    unless @extract_services 
+    unless @extract_services
       @extract_services = { :tcp => [], :http => [] }
       # step: we iterate the services which have load balancers defined
       exposed_services.each do |service|
@@ -107,13 +107,13 @@
             service_type = lb[source_port]['type']
             # DECISION: the destination port, i.e the port opened by nginx is either the port of the service
             # or we can overload it in the load balancer config
-            dest_port    = lb[source_port]['port'] || source_port 
+            dest_port    = lb[source_port]['port'] || source_port
             # check: ignore any port which does not have a type and highlight as an error
             unless service_type
               errors "the service: #{name}, port: #{source_port} does not have a service type: (tcp|http)"
               next
             end
-            # check: ignore anything that is not a valid service   
+            # check: ignore anything that is not a valid service
             unless service_type =~ /^(tcp|http)$/
               errors "the service: #{name}, port: #{source_port} service type: #{service_type} is invalid"
               next
@@ -157,11 +157,11 @@
 
 # Configuration Errors:
 <%- if errors.empty? -%>
-# Zero error encountered in the configuration 
-<%- else 
+# Zero error encountered in the configuration
+<%- else
   errors.each do |message| -%>
 # Error: <%= message -%>
-<%- end 
+<%- end
   end -%>
 
 daemon off;
@@ -222,19 +222,19 @@ http {
 
   include /etc/nginx/conf.d/*.conf;
 
-  <%- 
+  <%-
     sites = {}
     http_services.each do |service|
-      name     = service[:name] 
+      name     = service[:name]
       balancer = service[:balancer]
       vhost    = balancer['vhost'] || 'default'
-      protocol = (balancer['ssl']) ? 'https' : 'http'
+      pool     = "#{service[:port]}_#{name}"
       key      = "#{vhost}:#{service[:port]}"
       if sites.has_key?(key)
         # choice: for the MOMENT we are skipping multiple vhosts, as these need to be consolidated
         # to work *WIP*
   -%>
-  # skipping virtual host: <%= vhost %>:<%= service[:port] %>, this has already been used by service: <%= sites[vhost] %>      
+  # skipping virtual host: <%= vhost %>:<%= service[:port] %>, this has already been used by service: <%= sites[vhost] %>
   <%-
         next
       end
@@ -245,44 +245,46 @@ http {
     listen <%= service[:port] %>;
     server_name <%= vhost %>;
     <%- if balancer['ssl'] -%>
-    <%- ssl = balancer['ssl'] -%>
-    
-    ssl_certificate           <%= ssl['cert'] %>;
-    ssl_certificate_key       <%= ssl['key'] %>;
+    ssl_certificate      <%= balancer['ssl']['cert'] %>;
+    ssl_certificate_key  <%= balancer['ssl']['key'] %>;
 
     ssl on;
     ssl_session_cache  builtin:1000  shared:SSL:10m;
     ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
     ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
     ssl_prefer_server_ciphers on;
-    <%- end -%>
+    <%- end # end of the ssl section -%>
 
-    <%- if balancer['paths'] -%>
-      <%- balancer['paths'].each do |path| -%>
+    <%- if balancer['redirect'] -%>
+    Redirect <%= balancer['redirect']['path'] || '/' %> <%= balancer['redirect']['url'] %>
+    <%- elsif balancer['paths'] -%>
+      <%- balancer['paths'].each_pair do |path,backend| -%>
     location <%= path %>/ {
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header Host $http_host;
       proxy_set_header X-NginX-Proxy true;
-      proxy_pass http://<%= protocol %>_<%= name %>;
+      proxy_pass http://<%= backend %>;
     }
       <%- end -%>
-    <%- elsif balancer['defaultPath'] -%>
-    location / {
-      rewrite ^/$ <%= balancer['defaultPath'] %>/ permanent;
-    }
     <%- else -%>
     location / {
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header Host $http_host;
       proxy_set_header X-NginX-Proxy true;
-      proxy_pass http://<%= protocol %>_<%= name %>;
+      proxy_pass http://<%= pool %>;
     }
     <%- end -%>
   }
+  <%- end # end of the service iteration -%>
 
-  upstream <%= protocol %>_<%= name %> {
+  #
+  # Upstream / Backends
+  #
+  <%- http_services.each do |service| -%>
+  <%- pool = "#{service[:port]}_#{service[:name]}" -%>
+  upstream <%= pool %> {
     <%- if has_flannel? -%>
     server <%= service[:cluster_ip] %>:<%= service[:source_port] %>;
     <%- else -%>
@@ -291,6 +293,6 @@ http {
     <%- end # end of the minion iteration -%>
     <%- end # end of the flannel check -%>
   }
-  
-  <%- end # end of the service iteration -%>
+
+  <%- end -%>
 }
