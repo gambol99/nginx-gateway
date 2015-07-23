@@ -14,3 +14,6 @@ default: build
 
 build:
 	sudo /usr/bin/docker build -t ${AUTHOR}/${NAME} .
+
+test:
+	bin/nginx_config -f examples/config.json -D -t config/nginx/nginx.erb
