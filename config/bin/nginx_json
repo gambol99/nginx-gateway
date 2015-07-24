@@ -1,0 +1,46 @@
+#!/usr/bin/ruby 
+#
+#   Author: Rohith
+#   Date: 2015-07-24 12:25:00 +0100 (Fri, 24 Jul 2015)
+#
+#  vim:ts=2:sw=2:et
+#
+
+require 'yaml'
+require 'json'
+
+def usage(message = nil) 
+   puts(<<-EOF)
+   Usage: #{File.basename(__FILE__)} filename
+     filaname:		a yaml file containing the kubenetes replication controller and annotations
+
+   EOF
+   puts "[error] #{message}" if message
+   exit 0
+end
+
+def parse_config(filename)
+  usage "you have not specified a config file to load" unless filename
+  usage "the config file: #{filename} does not exist" unless File.exist?(filename)
+  usage "the config file: #{filename} is not a regular file" unless File.file?(filename)
+  begin 
+    YAML.load_file(filename)
+  rescue Exception => e 
+    usage "unable to load the config file: #{filename}, error: #{e}"
+  end 
+end
+
+
+def parse_balancer(filename = ARGV.first)
+  config = parse_config(filename)
+  usage "the type should be a 'Service'" unless config['kind'] == 'Service'
+  usage "the service does not have any metadata" unless config['metadata']
+  usage "the service does not have any annotations" unless config['metadata']['annotations']
+  usage "the service does not have any load balancer config" unless config['metadata']['annotations']['loadbalancer']
+  config['metadata']['annotations']['loadbalancer']  
+end
+
+# step: get the load balancer config
+puts parse_balancer.to_json
+
+
