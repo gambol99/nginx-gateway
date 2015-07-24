@@ -17,3 +17,4 @@ build:
 
 test:
 	bin/nginx_config -f examples/config.json -D -t config/nginx/nginx.erb
+  
