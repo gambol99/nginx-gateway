@@ -14,6 +14,11 @@
     !ENV['FLANNEL_ENABLED'].nil?
   end
 
+  def fail_timeout
+    return "0" if has_flannel?
+    ENV['NGINX_FAIL_TIMEOUT'] || '30'
+  end
+
   def has_endpoints?
     !ENV['ENDPOINTS_ENABLED'].nil?
   end
@@ -189,10 +194,10 @@ stream {
   <%- tcp_services.each do |service| -%>
   upstream <%= service[:port] %>_stream_<%= service[:name] %> {
     <%- if has_flannel? -%>
-    server <%= service[:cluster_ip] %>:<%= service[:source_port] %>;
+    server <%= service[:cluster_ip] %>:<%= service[:source_port] %> fail_timeout=<%= fail_timeout %>;
     <%- else -%>
     <%- minions.each do |node| -%>
-    server <%= node[:ip] %>:<%= service[:target_port] %>;
+    server <%= node[:ip] %>:<%= service[:target_port] %> fail_timeout=<%= fail_timeout %>;
     <%- end # end of the minion iteration -%>
     <%- end # end of the flannel check -%>
   }
@@ -250,9 +255,13 @@ http {
     <%- if balancer['ssl'] -%>
     ssl_certificate      <%= balancer['ssl']['cert'] %>;
     ssl_certificate_key  <%= balancer['ssl']['key'] %>;
+    <%- if balancer['ssl']['ca'] -%>
+    ssl_trusted_certificate <%= balancer['ssl']['ca'] %>;
+    <%- end -%>
 
     ssl on;
     ssl_session_cache  builtin:1000  shared:SSL:10m;
+    ssl_session_timeout 10m;
     ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
     ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
     ssl_prefer_server_ciphers on;
@@ -298,10 +307,10 @@ http {
   <%- pool = "#{service[:port]}_#{service[:name]}" -%>
   upstream <%= pool %> {
     <%- if has_flannel? -%>
-    server <%= service[:cluster_ip] %>:<%= service[:source_port] %>;
+    server <%= service[:cluster_ip] %>:<%= service[:source_port] %> fail_timeout=<%= fail_timeout %>;
     <%- else -%>
     <%- minions.each do |node| -%>
-    server <%= node[:ip] %>:<%= service[:target_port] %>;
+    server <%= node[:ip] %>:<%= service[:target_port] %> fail_timeout=<%= fail_timeout %>;
     <%- end # end of the minion iteration -%>
     <%- end # end of the flannel check -%>
   }
