@@ -80,7 +80,7 @@
           "name": "gitlab-web"
         },
         "annotations": {
-          "loadbalancer": "80:\n  type: http\n  vhost: gitlab.sbx.hod.gov.uk\n  redirect:\n    path: /\n    url: https://gitlab.sbx.hod.gov.uk\n443:\n  type: http\n  vhost: gitlab.sbx.hod.gov.uk\n  paths:\n    - path: /\n      backend: 80_gitlab-web\n  ssl:\n    cert: /etc/ssl/certs/wildcard.sbx.hod.gov.uk.crt\n    key: /etc/ssl/certs/wildcard.sbx.hod.gov.uk.key\n22:\n  type: tcp\n  port: 2222\n"
+          "loadbalancer": "80:\n  type: http\n  vhost: logs.example.com\n  redirect: \n    path: / \n    url: https://logs.example.com \n443:\n  type: http\n  vhost: logs.example.com\n  allowed:\n    - 127.0.0.1\n    - 10.0.0.0\n"
         }
       },
       "spec": {

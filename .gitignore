@@ -1,5 +1,6 @@
 
 test.conf
+prod.json
 
 *.gem
 *.rbc

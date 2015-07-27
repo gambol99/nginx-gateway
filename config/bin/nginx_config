@@ -25,7 +25,7 @@ module Nginx
 
   class Config
     def initialize
-      parser.parse! 
+      parser.parse!
       generate_config
     end
 
@@ -40,7 +40,7 @@ module Nginx
       # step: generate the config
       content = Nginx::Render.new(config).render(options[:tmpl])
       # step: write the source to the destination
-      print_config(content) 
+      print_config(content)
     end
 
     def load_configuration(filename)
@@ -49,19 +49,21 @@ module Nginx
     end
 
     def load_certificates(certs)
-      # step: write the certifactes to the directory 
-      certs.each do |cert|
-        # check: unless it's a hash we continue
-        next unless cert.is_a?(Hash)
-        # check: skip unless we have filename and content
-        next unless cert['filename']
-        next unless cert['content']
-        # step: write the file to the directory 
-        filename = "#{cert['filename']}"
-        # step: ensure the base directory exists
-        FileUtils.mkdir_p(File.dirname(filename))
-        # step: write the content to the file
-        File.open(filename, "w") { |fd| fd.write(cert['content']) }
+      # step: write the certifactes to the directory
+      unless options[:dryrun]
+        certs.each do |cert|
+          # check: unless it's a hash we continue
+          next unless cert.is_a?(Hash)
+          # check: skip unless we have filename and content
+          next unless cert['filename']
+          next unless cert['content']
+          # step: write the file to the directory
+          filename = "#{cert['filename']}"
+          # step: ensure the base directory exists
+          FileUtils.mkdir_p(File.dirname(filename))
+          # step: write the content to the file
+          File.open(filename, "w") { |fd| fd.write(cert['content']) }
+        end
       end
     end
 
@@ -69,7 +71,7 @@ module Nginx
       if options[:dryrun]
         puts content
       else
-        File.open(options[:dest], "w") { |fd| fd.write(content) } 
+        File.open(options[:dest], "w") { |fd| fd.write(content) }
       end
     end
 

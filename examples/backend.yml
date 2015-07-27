@@ -14,9 +14,16 @@ metadata:
     loadbalancer: |
       80:
         type: http
-        vhost: gitlab.example.com
-        paths:
-          - /backend
+        vhost: logs.example.com
+        redirect: 
+          path: / 
+          url: https://logs.example.com 
+      443:
+        type: http
+        vhost: logs.example.com
+        allowed:
+          - 127.0.0.1
+          - 10.0.0.0
 spec:
   ports:
     - name: http
