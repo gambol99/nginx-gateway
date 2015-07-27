@@ -14,6 +14,10 @@
     !ENV['FLANNEL_ENABLED'].nil?
   end
 
+  def has_status?
+    !ENV['NGINX_STATUS'].nil?
+  end
+
   def fail_timeout
     return "0" if has_flannel?
     ENV['NGINX_FAIL_TIMEOUT'] || '30'
@@ -229,6 +233,19 @@ http {
   gzip_disable "msie6";
 
   include /etc/nginx/conf.d/*.conf;
+
+  <%- if has_status? -%>
+  server {
+    listen 127.0.0.1:80;
+
+    location /nginx_status {
+      stub_status on;
+      access_log off;
+      allow 127.0.0.1;
+      deny all;
+    }
+  }
+  <%- end -%>
 
   <%-
     sites = {}
