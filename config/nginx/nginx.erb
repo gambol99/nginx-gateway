@@ -301,6 +301,12 @@ http {
       proxy_set_header Host $host;
       proxy_set_header X-NginX-Proxy true;
       proxy_pass http://<%= spec['backend'] %>;
+      <%- if balancer['allowed'] -%>
+      <%- (balancer['allowed'] || []).each do |x| -%>
+      allow <%= x %>;
+      <%- end -%>
+      deny all;
+      <%- end -%>
     }
       <%- end -%>
     <%- else -%>
@@ -311,6 +317,12 @@ http {
       proxy_set_header Host $host;
       proxy_set_header X-NginX-Proxy true;
       proxy_pass http://<%= pool %>;
+      <%- if balancer['allowed'] -%>
+      <%- (balancer['allowed'] || []).each do |x| -%>
+      allow <%= x %>;
+      <%- end -%>
+      deny all;
+      <%- end -%>
     }
     <%- end -%>
   }
