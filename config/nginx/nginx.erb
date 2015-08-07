@@ -85,6 +85,8 @@
     unless @nodes
       @nodes = []
       @minions.each do |node|
+        conditions = (node['status']['conditions'] || [])
+        next if conditions.size > 0 && conditions.first['type'] != 'Ready'
         @nodes << {
           :name => node['metadata']['name'],
           :ip   => node['spec']['externalID'],

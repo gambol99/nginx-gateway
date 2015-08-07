@@ -22,11 +22,8 @@ spec:
       containers:
       - name: nginx-gateway
         image: gambol99/nginx-gateway
-      - name: collectd
-        image: gambol99/collectd
-        env:
-        - name: COLLECTD_PLUGIN_NGINX
-          value: 'true'
+      
+
       hostNetwork: true
     nodeSelector:
       cluster: sbx

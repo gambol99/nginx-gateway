@@ -24,8 +24,11 @@ ExecStartPre=/usr/bin/docker pull gambol99/nginx-gateway
 ExecStartPre=-/usr/bin/etcdctl mk /certs
 ExecStart=/usr/bin/docker run --name nginx-gateway \
   --net=host \
+  -e FLANNEL_ENABLED=true \
+  -e ETCD_HOSTS=https://127.0.0.1:2379 \
   gambol99/nginx-gateway
+
 
 [X-Fleet]
 Global=true
-MachineMetadata=nginx-gateway=true
+MachineMetadata=role=kubernetes
