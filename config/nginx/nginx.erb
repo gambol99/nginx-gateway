@@ -10,6 +10,10 @@
   TCP_SERVICE  = 'tcp'
   HTTP_SERVICE = 'http'
 
+  def has_proto_protocol?
+    !ENV['PROTO_PROTOCOL'] and ENV['PROTO_PROTOCOL_SUBNET']
+  end
+
   def has_flannel?
     !ENV['FLANNEL_ENABLED'].nil?
   end
@@ -269,7 +273,13 @@ http {
       sites[key] = name
   -%>
   server {
+    <%- has_proto_protocol? -%>
+    listen <%= service[:port] %> proxy_protocol;
+    set_real_ip_from <%= ENV['PROTO_PROTOCOL_SUBNET'] %>;
+    real_ip_header X-Forwarded-For;
+    <%- else -%>
     listen <%= service[:port] %>;
+
     server_name <%= vhost %>;
     <%- if balancer['ssl'] -%>
     ssl_certificate      <%= balancer['ssl']['cert'] %>;

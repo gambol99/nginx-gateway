@@ -76,3 +76,12 @@ By passing the -e FLANNEL_ENABLED=true flag into the container, the config gener
 ##### **Testing Config**
 
 A example config.json has been placed into the examples/ directory, performing a: 'make test' will generate the config for you. If you wanna test against a different service, there's a bin/nginx_json helper script which will read a kubernetes service file and generate the json for you, which you can copy and paste into the config.json for example
+
+##### **Environment Variables**
+
+  - PROTO_PROTOCOL: enable the nginx proto_protocol (haproxy proxy protocol) - (http://nginx.org/en/docs/http/ngx_http_realip_module.html) for pull the client ip from tcp extension
+  - PROTO_PROTOCOL_SUBNET: the subnet of the upstream tcp proxy
+  - NGINX_FAIL_TIMEOUT: the timeout used for backend server, note, this applied when your use NodePort, it's ignored if your using the flannel address  
+  - NGINX_LOGS: enable the nginx web access logs
+  - FLANNEL_ENABLED: enable flannel usage - i.e. the host it's running on is running the kube-proxy and flannel so we can use the kubernetes service proxy
+  
