@@ -5,7 +5,6 @@
 #  vim:ts=2:sw=2:et
 #
 #
----
 apiVersion: v1
 kind: ReplicationController
 metadata:
@@ -18,12 +17,17 @@ spec:
     metadata:
       labels:
         name: nginx-gateway
+        app: nginx
+        role: gateway
+      metrics: |
+        - name: nginx
+          port: 9113
     spec:
       containers:
       - name: nginx-gateway
         image: gambol99/nginx-gateway
-      
-
+      - name: nginx_metrics
+        image: fish/nginx-exporter
+        ports:
+          - containerPort: 9113
       hostNetwork: true
-    nodeSelector:
-      cluster: sbx

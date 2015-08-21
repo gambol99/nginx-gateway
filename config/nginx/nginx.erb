@@ -304,6 +304,14 @@ http {
     ssl_prefer_server_ciphers on;
     <%- end # end of the ssl section -%>
 
+    <%- if balancer['maintenance'] -%>
+    # maintainance page redirect
+    error_page 502 @maintenance_<%= vhost %>;
+    location @maintenance_<%= vhost %> {
+      rewrite ^/(.*)$ "<%= balancer['maintenance'] %>" redirect;
+    }
+    <%- end -%>
+
     <%- if balancer['redirect'] -%>
     rewrite "<%= balancer['redirect']['path'] || '/' %>" <%= balancer['redirect']['url'] %>;
     <%- elsif balancer['paths'] -%>

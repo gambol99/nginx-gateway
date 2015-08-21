@@ -56,16 +56,27 @@ By default services use 'port' from the spec as the externally exposed spec, tho
           80:
             type: http
             vhost: gitlab.example.com
-            redirect https://gitlab.example.com
+            redirect
+              path: /
+              uri: https://gitlab.example.com
           443:
             type: http
             vhost: gitlab.example.com
             paths:
               - path: /
                 backend: 80_admin
+            # if the backend if down we redirect to here
+            maintenance: http://maintenance.example.com
+            # allow only the following ip addresses
+            allowed:
+              - 127.0.0.1/6
+              - 10.0.0.0/8
+              - 108.33.232.12/32
             ssl:
               key: <filename>
               cert: <filename>
+              ca: <filename>
+
 
 Note: at the moment the virtualhost on the same port are not consolidated, i.e say you have site X and you have Y backends which you wish to serve on different locations | url's; so / goes to default, /admin goes to backend 1 etc etc. At the moment, i'm not preprocessing the vhosts to perform this, a hash of vhost:port is maintained to ensure you dont try and add the same vhost on the same port.
 
@@ -83,5 +94,7 @@ A example config.json has been placed into the examples/ directory, performing a
   - PROTO_PROTOCOL_SUBNET: the subnet of the upstream tcp proxy
   - NGINX_FAIL_TIMEOUT: the timeout used for backend server, note, this applied when your use NodePort, it's ignored if your using the flannel address  
   - NGINX_LOGS: enable the nginx web access logs
+  - NGINX_CONNECTIONS: the number of nginx workers, defaults to 1024
+  - NGINX_USER: the user the nginx process should be running in
+  - NGINX_STATUS: wheather or not to add the /nginx_status module, 127.0.0.1 allowed only
   - FLANNEL_ENABLED: enable flannel usage - i.e. the host it's running on is running the kube-proxy and flannel so we can use the kubernetes service proxy
-  
