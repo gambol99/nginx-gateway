@@ -80,7 +80,7 @@
           "name": "gitlab-web"
         },
         "annotations": {
-          "loadbalancer": "80:\n  type: http\n  vhost: logs.example.com\n  redirect: \n    path: / \n    url: https://logs.example.com \n443:\n  type: http\n  vhost: logs.example.com\n  allowed:\n    - 127.0.0.1\n    - 10.0.0.0\n"
+          "loadbalancer": "80:\n  type: http\n  vhost: logs.example.com\n  redirect:\n    path: /\n    url: https://logs.example.com\n443:\n  type: http\n  vhost: logs.example.com\n  maintenance: http://maintenance.example.com\n  allowed:\n    - 127.0.0.1\n    - 10.0.0.0\n  ssl:\n    key: /etc/ssl/certs/logs.example.com.key\n    cert: /etc/ssl/certs/logs.example.com.crt \n"
         }
       },
       "spec": {

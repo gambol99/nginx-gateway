@@ -15,15 +15,19 @@ metadata:
       80:
         type: http
         vhost: logs.example.com
-        redirect: 
-          path: / 
-          url: https://logs.example.com 
+        redirect:
+          path: /
+          url: https://logs.example.com
       443:
         type: http
         vhost: logs.example.com
+        maintenance: http://maintenance.example.com
         allowed:
           - 127.0.0.1
           - 10.0.0.0
+        ssl:
+          key: /etc/ssl/certs/logs.example.com.key
+          cert: /etc/ssl/certs/logs.example.com.crt 
 spec:
   ports:
     - name: http
