@@ -260,6 +260,7 @@ http {
   <%-
     sites = {}
     http_services.each do |service|
+      id       = "#{service[:name]}_#{service[:port]}"
       name     = service[:name]
       balancer = service[:balancer]
       vhost    = balancer['vhost'] || 'default'
@@ -276,6 +277,15 @@ http {
       # step: add the site to the list of provisioned sites
       sites[key] = name
   -%>
+  <%- if !balancer['allowed'].nil? and has_proto_protocol? -%>
+  map $http_x_forwarded_for $allowed_<%= id %> {
+      default deny;
+      <%- balancer['allowed'].each do |x| -%>
+      ~\s*<%= x %>$ allow;
+      <%- end -%>
+  }
+  <%- end -%>
+
   server {
     <%- if has_proto_protocol? -%>
     listen <%= service[:port] %> proxy_protocol;
@@ -330,10 +340,14 @@ http {
       proxy_set_header X-NginX-Proxy true;
       proxy_pass http://<%= spec['backend'] %>;
       <%- if balancer['allowed'] -%>
+      <%- if has_proto_protocol? -%>
+      if ( $allowed_<%= id %> = "deny" ) { return 403; }
+      <%- else -%>
       <%- (balancer['allowed'] || []).each do |x| -%>
       allow <%= x %>;
       <%- end -%>
       deny all;
+      <%- end -%>
       <%- end -%>
     }
       <%- end -%>
@@ -346,15 +360,18 @@ http {
       proxy_set_header X-NginX-Proxy true;
       proxy_pass http://<%= pool %>;
       <%- if balancer['allowed'] -%>
+      <%- if has_proto_protocol? -%>
+      if ( $allowed_<%= id %> = "deny" ) { return 403; }
+      <%- else -%>
       <%- (balancer['allowed'] || []).each do |x| -%>
       allow <%= x %>;
       <%- end -%>
       deny all;
       <%- end -%>
+      <%- end -%>
     }
     <%- end -%>
   }
-
   <%- end # end of the service iteration -%>
 
   #
